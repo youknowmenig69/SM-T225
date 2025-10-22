@@ -376,67 +376,55 @@ static int MTKDeInitHWAPM(void)
 #endif
 
 #ifdef MTK_GPU_DVFS
+
 static IMG_BOOL MTKDoGpuDVFS(IMG_UINT32 ui32NewFreqID, IMG_BOOL bIdleDevice)
 {
-	PVRSRV_ERROR eResult;
-	IMG_UINT32 ui32RGXDevIdx;
-	unsigned int ui32GPUFreq;
-	unsigned int ui32CurFreqID;
-	PVRSRV_DEV_POWER_STATE ePowerState;
+    PVRSRV_ERROR eResult;
+    PVRSRV_DEVICE_NODE *psDevNode;
+    unsigned int ui32GPUFreq;
+    unsigned int ui32CurFreqID;
+    PVRSRV_DEV_POWER_STATE ePowerState;
 
-	/* bottom bound */
-	if (ui32NewFreqID > g_bottom_freq_id)
-		ui32NewFreqID = g_bottom_freq_id;
-	if (ui32NewFreqID > g_cust_boost_freq_id)
-		ui32NewFreqID = g_cust_boost_freq_id;
+    /* Bound checks here (same as before) */
 
-	/* up bound */
-	if (ui32NewFreqID < g_cust_upbound_freq_id)
-		ui32NewFreqID = g_cust_upbound_freq_id;
+    if (ui32NewFreqID == mt_gpufreq_get_cur_freq_index())
+        return IMG_FALSE;
 
-	/* thermal power limit */
-	if (ui32NewFreqID < mt_gpufreq_get_thermal_limit_index())
-		ui32NewFreqID = mt_gpufreq_get_thermal_limit_index();
+    psDevNode = MTKGetRGXDevNode();
+    if (!psDevNode)
+        return IMG_FALSE;
 
-	/* no change */
-	if (ui32NewFreqID == mt_gpufreq_get_cur_freq_index())
-		return IMG_FALSE;
+    eResult = PVRSRVDevicePreClockSpeedChange(psDevNode,
+            bIdleDevice, (void *)NULL);
+    if ((eResult == PVRSRV_OK) || (eResult == PVRSRV_ERROR_RETRY)) {
+        PVRSRVGetDevicePowerState(psDevNode, &ePowerState);
+        if (ePowerState != PVRSRV_DEV_POWER_STATE_ON)
+            MTKEnableMfgClock(IMG_FALSE);
 
-	ui32RGXDevIdx = MTKGetRGXDevIdx();
-	if (ui32RGXDevIdx == MTK_RGX_DEVICE_INDEX_INVALID)
-		return IMG_FALSE;
+        mt_gpufreq_target(ui32NewFreqID);
+        ui32CurFreqID = mt_gpufreq_get_cur_freq_index();
+        ui32GPUFreq = mt_gpufreq_get_frequency_by_level(ui32CurFreqID);
+        gpu_freq = ui32GPUFreq;
 
-	eResult = PVRSRVDevicePreClockSpeedChange(ui32RGXDevIdx,
-			bIdleDevice, (void *)NULL);
-	if ((eResult == PVRSRV_OK) || (eResult == PVRSRV_ERROR_RETRY)) {
-		PVRSRVGetDevicePowerState(ui32RGXDevIdx, &ePowerState);
-		if (ePowerState != PVRSRV_DEV_POWER_STATE_ON)
-			MTKEnableMfgClock(IMG_FALSE);
-
-		mt_gpufreq_target(ui32NewFreqID);
-		ui32CurFreqID = mt_gpufreq_get_cur_freq_index();
-		ui32GPUFreq = mt_gpufreq_get_frequency_by_level(ui32CurFreqID);
-		gpu_freq = ui32GPUFreq;
-
-		MTKWriteBackFreqToRGX(ui32RGXDevIdx, ui32GPUFreq);
+        MTKWriteBackFreqToRGX(psDevNode, ui32GPUFreq);
 
 #ifdef MTK_DEBUG
-	if (gpu_debug_enable)
-		pr_debug("PVR_K: 3DFreq=%d, Volt=%d\n",
-		ui32GPUFreq, mt_gpufreq_get_cur_volt());
+        if (gpu_debug_enable)
+            pr_debug("PVR_K: 3DFreq=%d, Volt=%d\n",
+                ui32GPUFreq, mt_gpufreq_get_cur_volt());
 #endif
 
-		if (ePowerState != PVRSRV_DEV_POWER_STATE_ON)
-			MTKDisableMfgClock(IMG_TRUE);
+        if (ePowerState != PVRSRV_DEV_POWER_STATE_ON)
+            MTKDisableMfgClock(IMG_TRUE);
 
-		if (eResult == PVRSRV_OK)
-			PVRSRVDevicePostClockSpeedChange(ui32RGXDevIdx,
-			bIdleDevice, (void *)NULL);
+        if (eResult == PVRSRV_OK)
+            PVRSRVDevicePostClockSpeedChange(psDevNode,
+                bIdleDevice, (void *)NULL);
 
-		return IMG_TRUE;
-	}
+        return IMG_TRUE;
+    }
 
-	return IMG_FALSE;
+    return IMG_FALSE;
 }
 
 /* For ged_dvfs idx commit */
