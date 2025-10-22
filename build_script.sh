@@ -8,7 +8,7 @@ ARGS="$*"
 SRC_DIR="$(pwd)"
 TC_DIR="$HOME/toolchains/neutron-clang"
 JOBS="$(nproc --all)"
-MAKE_PARAMS="-j$JOBS -C $SRC_DIR O=$SRC_DIR/out ARCH=arm64 CC=clang CLANG_TRIPLE=$TC_DIR/bin/aarch64-linux-gnu- LLVM=1 CROSS_COMPILE=$TC_DIR/bin/llvm-"
+MAKE_PARAMS="-j$JOBS -C $SRC_DIR O=$SRC_DIR/out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- LLVM=1 CROSS_COMPILE=$TC_DIR/bin/aarch64-linux-gnu-"
 export PATH="$TC_DIR/bin:$PATH"
 
 DEFCONFIG=gta7lite_defconfig
